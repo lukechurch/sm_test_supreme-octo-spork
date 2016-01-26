@@ -24,7 +24,7 @@ class log {
     // new io.File(io.Platform.environment["HOME"] + "/logs/model.log").writeAsStringSync(
     //   "${new DateTime.now().toIso8601String()}: ${_name} $l \n", mode: io.FileMode.APPEND);
 
-    log_client.info(l);
+    log_client.info(_name, l);
   }
 }
 
@@ -42,7 +42,7 @@ class Model {
 
   Model(String featuresPath,
       [this.modelSwitchThreshold = 3, this.smoothingFactor = 0.0000001]) {
-    log.setupLogging("smart");
+    log.setupLogging("smart_completion_order");
     log.trace("About to start feature server: $featuresPath");
     server = FeatureServer.startFromPath(featuresPath);
   }
@@ -62,15 +62,20 @@ class Model {
 
     // Get a list of completions that we've seen for this type
     var targetType = featureMap["TargetType"];
+    var serverMap = server.getFeaturesFor(targetType);
 
-    if (targetType == null || server.featureMap[targetType] == null ||
-        server.featureMap[targetType].completionResult_count == null) {
+    if (targetType == null || serverMap == null ||
+        serverMap.completionResult_count == null) {
+          log.info("Type not seen before: $targetType, "
+          "${serverMap == null} "
+          "${serverMap.completionResult_count == null}");
+
       // We've never seen this type before, this simple model should just
       // return a uniform model
       return null;
     }
 
-    var completionResultsMap = server.featureMap[targetType].completionResult_count;
+    var completionResultsMap = serverMap.completionResult_count;
 
     List<String> seenCompletions = completionResultsMap.keys.toList();
     num totalSeenCount = completionResultsMap.values.reduce(sum);
@@ -96,7 +101,7 @@ class Model {
 
         // targetType -> feature -> completionResult -> featureValue :: count
         // Lookup this value in the main model
-        Map<dynamic, num> featureValue__count = server.featureMap[targetType].
+        Map<dynamic, num> featureValue__count = serverMap.
           featureName_completionResult_featureValue_count[featureName][completion];
 
         // For the given [completion] the counts of the feature values are now
