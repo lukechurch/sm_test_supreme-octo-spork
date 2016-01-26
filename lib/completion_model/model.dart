@@ -6,10 +6,27 @@ library smart.completion_model.model;
 
 import '../completion_server/feature_server.dart';
 import 'ast_extractors.dart';
-import 'package:sintr_common/logging_utils.dart' as log;
+// import 'dart:io' as io;
+// import 'package:sintr_common/logging_utils.dart' as log;
+import '../completion_server/log_client.dart' as log_client;
 
-const ENABLE_DIAGNOSTICS = true;
+const ENABLE_DIAGNOSTICS = false;
 const DISABLED_FEATURES = const [];
+
+class log {
+  static String _name;
+  static setupLogging(String name) {_name = name;}
+  static trace(String l) => _log("TRACE: $l");
+  static info(String l) => _log("INFO: $l");
+  static debug(String l) => _log("DEBUG $l");
+
+  static _log(String l) {
+    // new io.File(io.Platform.environment["HOME"] + "/logs/model.log").writeAsStringSync(
+    //   "${new DateTime.now().toIso8601String()}: ${_name} $l \n", mode: io.FileMode.APPEND);
+
+    log_client.info(l);
+  }
+}
 
 class Model {
   int modelSwitchThreshold;
@@ -46,27 +63,23 @@ class Model {
     // Get a list of completions that we've seen for this type
     var targetType = featureMap["TargetType"];
 
-    if (targetType == null ||
+    if (targetType == null || server.featureMap[targetType] == null ||
         server.featureMap[targetType].completionResult_count == null) {
       // We've never seen this type before, this simple model should just
       // return a uniform model
       return null;
     }
 
-    List<String> seenCompletions =
-        server.featureMap[targetType].completionResult_count.keys.toList();
+    var completionResultsMap = server.featureMap[targetType].completionResult_count;
 
-    num totalSeenCount =
-        server.featureMap[targetType].completionResult_count.values.reduce(sum);
+    List<String> seenCompletions = completionResultsMap.keys.toList();
+    num totalSeenCount = completionResultsMap.values.reduce(sum);
 
     for (String completion in seenCompletions) {
       completionScores.putIfAbsent(completion, () => {});
 
       // Compute P(c == completion)
-      num pCompletion = server.featureMap[targetType].completionResult_count[
-              completion] /
-          totalSeenCount;
-
+      num pCompletion = completionResultsMap[completion] / totalSeenCount;
       completionScores[completion]["pCompletion"] = pCompletion;
 
       num pFeatures = 1;
@@ -78,15 +91,20 @@ class Model {
         // Skip any features that are disabled in the model
         if (DISABLED_FEATURES.contains(featureName)) continue;
 
-        // Lookup the value for this feature for query
+        // Lookup the value for this feature for completion query
         var featureValue = "${featureMap[featureName]}";
 
         // targetType -> feature -> completionResult -> featureValue :: count
         // Lookup this value in the main model
-        Map<dynamic, num> featureValue__count = server.featureMap[targetType]
-                .featureName_completionResult_featureValue_count[featureName]
-            [completion];
-        assert(featureValue__count != null);
+        Map<dynamic, num> featureValue__count = server.featureMap[targetType].
+          featureName_completionResult_featureValue_count[featureName][completion];
+
+        // For the given [completion] the counts of the feature values are now
+        // in featureValue__count
+
+        // If this is null, it's because this part of the model has been pruned
+        // We can simulate this by creating an empty map
+        if (featureValue__count == null) featureValue__count = {};
 
         // Compute the total for this feature value
         num totalForThisValue = featureValue__count.values.reduce(sum);
