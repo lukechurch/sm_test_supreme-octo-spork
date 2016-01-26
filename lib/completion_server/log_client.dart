@@ -14,15 +14,16 @@ enum LogTarget {
 const LogTarget TARGET = LogTarget.LOG_SERVER;
 const int LOG_SERVER_PORT = 9991;
 
-info(String s) async {
+info(String srcName, String logItem) async {
+  String logLine = "${new DateTime.now().toIso8601String()}: $srcName: $logItem";
   switch (TARGET) {
     case LogTarget.STDOUT:
-      print ("${new DateTime.now().toIso8601String()}: $s");
+      print (logLine);
       break;
     case LogTarget.LOG_SERVER:
       var request = await new HttpClient().post(
         InternetAddress.LOOPBACK_IP_V4.host, LOG_SERVER_PORT, '/');
-      request.write(s);
+      request.write(logLine);
       await request.close();
       break;
   }
