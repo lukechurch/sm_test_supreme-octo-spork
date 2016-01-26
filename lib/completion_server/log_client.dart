@@ -27,7 +27,7 @@ Future info(String srcName, String logItem) async {
   int i = 0;
 
   String logLine = "${new DateTime.now().toIso8601String()}: $srcName: $logItem";
-  logLine = logLine.substring(0, logLine.length > 100 ? 100 : logLine.length);
+  // logLine = logLine.substring(0, logLine.length > 100 ? 100 : logLine.length);
   switch (TARGET) {
     case LogTarget.STDOUT:
       print (logLine);
